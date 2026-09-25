@@ -136,9 +136,12 @@ pub struct FallbackResolver {
     /// This field is chosen by the caller of `create_escrow_with_fallback`
     /// and only controls *which resolver* may act.
     ///
-    /// Not range-checked on creation: a value in the past (including `0`)
-    /// simply means the backup is co-authorized with the primary from the
-    /// start.
+    /// Must be no later than `MAX_FALLBACK_DEADLINE_OFFSET` (39 days) past
+    /// the creation timestamp, or creation fails with
+    /// `InvalidFallbackDeadline`; otherwise an unresponsive primary could
+    /// lock disputed funds indefinitely. A value in the past (including `0`)
+    /// is allowed and simply means the backup is co-authorized with the
+    /// primary from the start.
     pub dispute_deadline: u64,
 }
 

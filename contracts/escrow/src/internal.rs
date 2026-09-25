@@ -265,7 +265,9 @@ pub(crate) fn validate_escrow_fee_bps(fee_bps: u32) -> Result<(), ContractError>
     Ok(())
 }
 
-/// Validates resolver set to ensure no conflicts with seller/buyer.
+/// Validates resolver set to ensure no conflicts with seller/buyer, and for a
+/// `Fallback` set that the backup's `dispute_deadline` is within
+/// `MAX_FALLBACK_DEADLINE_OFFSET` of the current ledger timestamp.
 pub(crate) fn validate_resolvers(
     resolvers: &ResolverSet,
     seller: &Address,
@@ -300,6 +302,19 @@ pub(crate) fn validate_resolvers(
     } else if let ResolverSet::Fallback(f) = resolvers {
         if f.primary == f.backup {
             return Err(ContractError::ConflictingRoles);
+        }
+
+        // An unbounded deadline (e.g. u64::MAX) would never admit the backup,
+        // leaving disputed funds locked if the primary stops responding.
+        let max_deadline = f
+            .primary
+            .env()
+            .ledger()
+            .timestamp()
+            .checked_add(MAX_FALLBACK_DEADLINE_OFFSET)
+            .ok_or(ContractError::ArithmeticOverflow)?;
+        if f.dispute_deadline > max_deadline {
+            return Err(ContractError::InvalidFallbackDeadline);
         }
     }
 
