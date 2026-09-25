@@ -256,6 +256,11 @@ pub struct DisputeData {
     pub arbitration_fee: i128,
     /// Resolver fee paid out when the resolution transition executed
     pub resolver_fee: i128,
+    /// Whether the arbitration and resolver fees have been charged for this
+    /// dispute. Set on the first resolution transition and never cleared, so
+    /// appeal rounds cannot charge again — even when the recorded fees were
+    /// zero and the global fee config has since been raised.
+    pub fees_charged: bool,
 }
 
 impl DisputeData {
@@ -277,19 +282,11 @@ impl DisputeData {
     /// Clears the recorded resolution so a fresh round of voting can begin
     /// after an appeal.
     ///
-    /// `arbitration_fee` and `resolver_fee` are intentionally left in place:
-    /// they record the amounts already deducted from the escrow for this
-    /// dispute. The resolution transition reads them to charge those fees
-    /// **once per dispute** rather than again for every appeal round (see
-    /// `execute_resolution_transition`).
-    /// Clears the recorded resolution so a fresh round of voting can begin
-    /// after an appeal.
-    ///
-    /// `arbitration_fee` and `resolver_fee` are intentionally left in place:
-    /// they record the amounts already deducted from the escrow for this
-    /// dispute. The resolution transition reads them to charge those fees
-    /// **once per dispute** rather than again for every appeal round (see
-    /// `execute_resolution_transition`).
+    /// `fees_charged`, `arbitration_fee` and `resolver_fee` are intentionally
+    /// left in place: they record that (and how much) was already deducted
+    /// from the escrow for this dispute. The resolution transition reads them
+    /// to charge those fees **once per dispute** rather than again for every
+    /// appeal round (see `execute_resolution_transition`).
     pub fn clear_resolution(&mut self) {
         self.resolution = 0;
         self.resolved_by = None;

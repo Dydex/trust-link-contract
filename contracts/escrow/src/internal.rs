@@ -981,12 +981,15 @@ pub(crate) fn execute_resolution_transition(
     // Load the dispute record up front. After an appeal the escrow returns to
     // `Disputed` and this transition runs again — but the arbitration and
     // resolver fees are charged to the escrow **once per dispute**, not once
-    // per appeal round. A non-zero fee on the dispute record means a prior
-    // round already deducted and paid it out (`clear_resolution` deliberately
-    // preserves these two fields), so this round reuses the recorded amounts
-    // and skips the deduction, the accounting bump, and the transfers.
+    // per appeal round. `fees_charged` on the dispute record means a prior
+    // round already deducted and paid them out (`clear_resolution`
+    // deliberately preserves it and the recorded amounts), so this round
+    // reuses the recorded amounts and skips the deduction, the accounting
+    // bump, and the transfers. A dedicated flag is required: the recorded
+    // amounts can legitimately be zero, and inferring "not yet charged" from
+    // that would let an appeal pick up a since-raised fee config.
     let mut dispute_data = load_dispute(env, escrow_id)?;
-    let fees_already_charged = dispute_data.arbitration_fee > 0 || dispute_data.resolver_fee > 0;
+    let fees_already_charged = dispute_data.fees_charged;
 
     let (arbitration_fee, resolver_fee) = if fees_already_charged {
         (dispute_data.arbitration_fee, dispute_data.resolver_fee)
@@ -1065,6 +1068,7 @@ pub(crate) fn execute_resolution_transition(
     dispute_data.resolved_at = now;
     dispute_data.arbitration_fee = arbitration_fee;
     dispute_data.resolver_fee = resolver_fee;
+    dispute_data.fees_charged = true;
 
     updated_escrow.state = EscrowState::PendingFinalization;
 
