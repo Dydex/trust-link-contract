@@ -1603,31 +1603,25 @@ impl Escrow {
         Ok(())
     }
 
-    /// Seller (any payee) approves a pending refund request, transferring the
-    /// full amount (and any basket tokens) back to the buyer. Reverts with
-    /// `NotAuthorized` if `caller` is not a payee, or
-    /// `InvalidStateTransition` if the escrow is not `RefundRequested`.
-    /// Transitions the escrow to `Refunded`. Emits `refund_approved`.
+    /// Primary payee (`payees[0]`) approves a pending refund request,
+    /// transferring the full amount (and any basket tokens) back to the buyer.
+    /// Secondary payees cannot approve, since a refund forfeits the primary
+    /// seller's share as well as their own. Reverts with `NotAuthorized` if
+    /// `caller` is not the primary payee, or `InvalidStateTransition` if the
+    /// escrow is not `RefundRequested`. Transitions the escrow to `Refunded`.
+    /// Emits `refund_approved`.
     pub fn approve_refund(env: Env, caller: Address, escrow_id: u64) -> Result<(), ContractError> {
         caller.require_auth();
         ensure_not_paused(&env)?;
         crate::internal::ensure_not_expired(&env, escrow_id)?;
         let mut escrow = load_escrow(&env, escrow_id)?;
 
-        let mut is_payee = false;
-        for i in 0..escrow.payees.len() {
-            if caller
-                == escrow
-                    .payees
-                    .get(i)
-                    .ok_or(ContractError::IndexOutOfBounds)?
-                    .address
-            {
-                is_payee = true;
-                break;
-            }
-        }
-        if !is_payee {
+        let primary_payee = escrow
+            .payees
+            .get(0)
+            .ok_or(ContractError::IndexOutOfBounds)?
+            .address;
+        if caller != primary_payee {
             return Err(ContractError::NotAuthorized);
         }
 
